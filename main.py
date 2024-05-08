@@ -58,7 +58,6 @@ def main(page: ft.Page):
     def download_completed(stream, file_handle):
         progrss.bgcolor = ft.colors.GREEN
         open_error_dlg_modal('Download completed', 'The video has been downloaded successfully.')
-        progrss.visible=False
 
 
     '''#monitor the download progress'''
@@ -75,6 +74,8 @@ def main(page: ft.Page):
     to save the video to selected path from file picker'''
 
     def startDownload(path):
+        progrss.value = 0
+        progrss.visible = True
         url = user_link.value
         try:
             yt = YouTube(url, on_progress_callback=on_progress, on_complete_callback=download_completed)
@@ -210,7 +211,7 @@ def main(page: ft.Page):
     # get video info, when called, it will check the link is valid or not
     # if valid, it will get the video title, thumbnail, description and resolution
     def get_video_info(e):
-        progrss.value = 0
+        open_error_dlg_modal('Searching...', 'Video information will be loaded once searching is completed')
         url = user_link.value
         if not check_link():
             open_error_dlg_modal('Error', 'Invalid YouTube video link')
@@ -231,6 +232,7 @@ def main(page: ft.Page):
         chips_legnth_views.visible = True
         chips_views.visible = True
 
+        close_error_dlg(e)
         page.update()
 
     # add all the field to the page
