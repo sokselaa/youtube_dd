@@ -59,8 +59,8 @@ def main(page: ft.Page):
         progrss.bgcolor = ft.colors.GREEN
         open_error_dlg_modal('Download completed', 'The video has been downloaded successfully.')
 
-
     '''#monitor the download progress'''
+
     def on_progress(stream, chunk, bytes_remaining):
         total_size = stream.filesize  # Assuming filesize is available
         downloaded = total_size - bytes_remaining
@@ -101,6 +101,9 @@ def main(page: ft.Page):
                 json_file.seek(0)
                 json.dump(json_data, json_file, indent=4)
 
+                #close the directory json file
+                json_file.close()
+
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error processing JSON file: {e}")
 
@@ -131,6 +134,9 @@ def main(page: ft.Page):
 
                     # start download the video with path as argument
                     startDownload(path)
+
+                #close the directory json file
+                json_file.close()
 
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error processing JSON file: {e}")
