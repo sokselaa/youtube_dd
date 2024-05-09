@@ -10,23 +10,23 @@ def main(page: ft.Page):
     page.scrollable = True
 
     thumbnail = ft.Container(width=576, height=320, image_fit=ft.ImageFit.COVER)
-    title = ft.Text('', size=25, no_wrap=False, width=640, text_align=ft.CrossAxisAlignment.START)
+    title = ft.Text('', size=25, no_wrap=False, width=640)
     description = ft.Text('', size=15, no_wrap=False, width=640, height=170)
-    legnth_views = ft.Text('', size=12)
+    length_views = ft.Text('', size=12)
     views = ft.Text('', size=12)
 
     user_link = ft.TextField(label='Video link',
                              hint_text='Please input youtube video link',
                              height=60, width=500)
 
-    # create varibles for error dialog, title and message
+    # create variables for error dialog, title and message
     error_title = ft.Text('', size=20)
     error_message = ft.Text('', size=15)
+    link = ft.Text('')
 
     # create a function to close the dialog
     def close_error_dlg(e):
         dlg_modal.open = False
-        user_link.value = ''
         user_link.focus()
         page.update()
 
@@ -52,31 +52,31 @@ def main(page: ft.Page):
     )
 
     '''
-    this function will be called from download_completed callback on startDownload fucntion
+    this function will be called from download_completed callback on start_download fucntion
     and open a dialog modal to show the download completed message'''
 
     def download_completed(stream, file_handle):
-        progrss.bgcolor = ft.colors.GREEN
+        progress.bgcolor = ft.colors.GREEN
         open_error_dlg_modal('Download completed', 'The video has been downloaded successfully.')
 
     '''#monitor the download progress'''
 
     def on_progress(stream, chunk, bytes_remaining):
-        total_size = stream.filesize  # Assuming filesize is available
+        total_size = stream.filesize  # Assuming file size is available
         downloaded = total_size - bytes_remaining
         percentage = f'{downloaded / total_size:.2f}'
         print(percentage)
-        progrss.value = percentage
+        progress.value = percentage
         page.update()
 
     '''
     create a function to start download with arg path 
     to save the video to selected path from file picker'''
 
-    def startDownload(path):
-        progrss.value = 0
-        progrss.visible = True
+    def start_download(path):
         url = user_link.value
+        progress.value = 0
+        progress.visible = True
         try:
             yt = YouTube(url, on_progress_callback=on_progress, on_complete_callback=download_completed)
             video = yt.streams.first()  # Select the first stream
@@ -90,7 +90,7 @@ def main(page: ft.Page):
     selected_path = ft.Text('')
 
     # after user click choose on file picker button, this function will be called
-    # to get the directorry result and save the selected path to json file
+    # to get the directory result and save the selected path to json file
 
     def get_directory_result(e: ft.FilePickerResultEvent):
         selected_path.value = e.path if e.path else 'Cancelled!'
@@ -100,9 +100,6 @@ def main(page: ft.Page):
                 json_data["selected_path"] = selected_path.value
                 json_file.seek(0)
                 json.dump(json_data, json_file, indent=4)
-
-                #close the directory json file
-                json_file.close()
 
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error processing JSON file: {e}")
@@ -126,23 +123,20 @@ def main(page: ft.Page):
 
                 if not json_data.get("selected_path"):
 
-                    # open the filck picker to select the directory
+                    # open the flick picker to select the directory
                     file_picker.get_directory_path()
                 else:
                     '''path = json_data.get("selected_path")'''
                     path = json_data.get("selected_path")
 
                     # start download the video with path as argument
-                    startDownload(path)
-
-                #close the directory json file
-                json_file.close()
+                    start_download(path)
 
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error processing JSON file: {e}")
 
     # line separator
-    devider = ft.Divider(visible=False)
+    divider = ft.Divider(visible=False)
 
     # download button to start download the video
     # when user click the download button, it will call check_save_directory function
@@ -155,10 +149,10 @@ def main(page: ft.Page):
                                      on_click=lambda e: check_save_directory(direct_path))
 
     # progress bar to show the download progress
-    progrss = ft.ProgressBar(value=0, height=10, width=400, visible=False, border_radius=5)
+    progress = ft.ProgressBar(value=0, height=10, width=400, visible=False, border_radius=5)
 
     # chips to show the video length and views
-    chips_legnth_views = ft.Chip(label=legnth_views,
+    chips_length_views = ft.Chip(label=length_views,
                                  leading=ft.Icon(ft.icons.TIMELAPSE),
                                  bgcolor=ft.colors.PRIMARY_CONTAINER,
                                  visible=False)
@@ -177,7 +171,7 @@ def main(page: ft.Page):
         except Exception as e:
             print('Unable to get video title')
 
-    def get_thumnail(yt):
+    def get_thumbnail(yt):
         try:
             thumbnail.image_src = yt.thumbnail_url
         except Exception as e:
@@ -206,8 +200,7 @@ def main(page: ft.Page):
             description.value = 'Unable to get video resolution'
 
     # check if the link is valid or not
-    def check_link():
-        url = user_link.value
+    def check_link(url):
         try:
             yt = YouTube(url)
             return True
@@ -219,23 +212,24 @@ def main(page: ft.Page):
     def get_video_info(e):
         open_error_dlg_modal('Searching...', 'Video information will be loaded once searching is completed')
         url = user_link.value
-        if not check_link():
+        print(url)
+        if not check_link(url):
             open_error_dlg_modal('Error', 'Invalid YouTube video link')
             return
         else:
             yt = YouTube(url)
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 executor.submit(get_title, yt)
-                executor.submit(get_thumnail, yt)
+                executor.submit(get_thumbnail, yt)
                 executor.submit(get_description, yt)
                 executor.submit(get_resolution, yt)
 
-        legnth_views.value = f' {yt.length / 60:,.2f} mins '
+        length_views.value = f' {yt.length / 60:,.2f} mins '
         views.value = f' {yt.views:,.0f} views '
 
-        devider.visible = True
+        divider.visible = True
         download_btn.visible = True
-        chips_legnth_views.visible = True
+        chips_length_views.visible = True
         chips_views.visible = True
 
         close_error_dlg(e)
@@ -290,7 +284,7 @@ def main(page: ft.Page):
 
                 ft.Row([
                     ft.Column([
-                        chips_legnth_views
+                        chips_length_views
                     ]),
                     ft.Column([
                         chips_views
@@ -298,11 +292,11 @@ def main(page: ft.Page):
                 ]),
             ], height=320)
         ]),
-        devider,
+        divider,
         ft.Row([
             download_btn
         ], alignment=ft.MainAxisAlignment.CENTER),
-        ft.Row([progrss], alignment=ft.MainAxisAlignment.CENTER),
+        ft.Row([progress], alignment=ft.MainAxisAlignment.CENTER),
 
     )
 
