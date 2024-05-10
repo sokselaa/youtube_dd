@@ -1,5 +1,6 @@
 import flet as ft
 from pytubefix import YouTube
+from pytube.exceptions import VideoUnavailable
 import concurrent.futures
 import json
 
@@ -10,10 +11,11 @@ def main(page: ft.Page):
     page.scrollable = True
 
     thumbnail = ft.Container(width=576, height=320, image_fit=ft.ImageFit.COVER)
-    title = ft.Text('', size=25, no_wrap=False, width=640)
+    title = ft.Text('', size=20,  width=640)
     description = ft.Text('', size=15, no_wrap=False, width=640, height=170)
     length_views = ft.Text('', size=12)
     views = ft.Text('', size=12)
+    author = ft.Text('', size=12, weight=ft.FontWeight.BOLD)
 
     user_link = ft.TextField(label='Video link',
                              hint_text='Please input youtube video link',
@@ -22,7 +24,6 @@ def main(page: ft.Page):
     # create variables for error dialog, title and message
     error_title = ft.Text('', size=20)
     error_message = ft.Text('', size=15)
-    link = ft.Text('')
 
     # create a function to close the dialog
     def close_error_dlg(e):
@@ -38,8 +39,7 @@ def main(page: ft.Page):
         dlg_modal.open = True
         page.update()
 
-        # create a dialog modal to display error message
-
+    # create a dialog modal to display error message
     dlg_modal = ft.AlertDialog(
         modal=True,
         title=error_title,
@@ -48,7 +48,6 @@ def main(page: ft.Page):
             ft.TextButton("OK", on_click=close_error_dlg, width=100, height=40),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
-        # on_dismiss=lambda e: print("Modal dialog dismissed!"),
     )
 
     '''
@@ -83,7 +82,7 @@ def main(page: ft.Page):
             open_error_dlg_modal('Downloading...', 'The video is downloading. Please wait...')
             video.download(output_path=path)
 
-        except Exception as e:
+        except VideoUnavailable:
             open_error_dlg_modal('Error', 'An error occurred while downloading the video.')
 
     direct_path = 'directory.json'
@@ -123,7 +122,7 @@ def main(page: ft.Page):
 
                 if not json_data.get("selected_path"):
 
-                    # open the flick picker to select the directory
+                    # open the file picker to select the directory
                     file_picker.get_directory_path()
                 else:
                     '''path = json_data.get("selected_path")'''
@@ -151,37 +150,51 @@ def main(page: ft.Page):
     # progress bar to show the download progress
     progress = ft.ProgressBar(value=0, height=10, width=400, visible=False, border_radius=5)
 
+    def chip_clicked():
+        return None
+
     # chips to show the video length and views
     chips_length_views = ft.Chip(label=length_views,
                                  leading=ft.Icon(ft.icons.TIMELAPSE),
                                  bgcolor=ft.colors.PRIMARY_CONTAINER,
-                                 visible=False)
+                                 visible=False,
+                                 on_click=lambda _: chip_clicked)
 
     chips_views = ft.Chip(label=views,
                           leading=ft.Icon(ft.icons.VIEW_AGENDA),
                           bgcolor=ft.colors.PRIMARY_CONTAINER,
-                          visible=False)
+                          visible=False,
+                          on_click=lambda _: chip_clicked)
 
-    '''
-    #get video title, thumbnail, description and resolution'''
+    chip_author = ft.Chip(label=author,
+                          leading=ft.Icon(ft.icons.PERSON),
+                          bgcolor=ft.colors.PRIMARY_CONTAINER,
+                          visible=False,
+                          on_click=lambda _: chip_clicked)
+
+    def get_channel_name(yt):
+        try:
+            author.value = yt.author
+        except VideoUnavailable:
+            print('Unable to get video title')
 
     def get_title(yt):
         try:
             title.value = yt.title
-        except Exception as e:
+        except Exception:
             print('Unable to get video title')
 
     def get_thumbnail(yt):
         try:
             thumbnail.image_src = yt.thumbnail_url
-        except Exception as e:
+        except Exception:
             print('Unable to get video thumbnail')
 
     def get_description(yt):
         try:
             streams = yt.streams
             description.value = yt.description
-        except Exception as e:
+        except Exception:
             print('Unable to get video description')
 
     def get_resolution(yt):
@@ -196,7 +209,7 @@ def main(page: ft.Page):
             remove_p_from_resolutions = list(filter(None, resolutions))
             remove_p_from_resolutions.sort()
             print(remove_p_from_resolutions)
-        except Exception as e:
+        except VideoUnavailable:
             description.value = 'Unable to get video resolution'
 
     # check if the link is valid or not
@@ -204,13 +217,13 @@ def main(page: ft.Page):
         try:
             yt = YouTube(url)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     # get video info, when called, it will check the link is valid or not
     # if valid, it will get the video title, thumbnail, description and resolution
     def get_video_info(e):
-        open_error_dlg_modal('Searching...', 'Video information will be loaded once searching is completed')
+        open_error_dlg_modal('Searching...', 'Please wait while searching')
         url = user_link.value
         print(url)
         if not check_link(url):
@@ -223,6 +236,7 @@ def main(page: ft.Page):
                 executor.submit(get_thumbnail, yt)
                 executor.submit(get_description, yt)
                 executor.submit(get_resolution, yt)
+                executor.submit(get_channel_name, yt)
 
         length_views.value = f' {yt.length / 60:,.2f} mins '
         views.value = f' {yt.views:,.0f} views '
@@ -231,6 +245,7 @@ def main(page: ft.Page):
         download_btn.visible = True
         chips_length_views.visible = True
         chips_views.visible = True
+        chip_author.visible = True
 
         close_error_dlg(e)
         page.update()
@@ -268,7 +283,19 @@ def main(page: ft.Page):
 
                 ft.Row([
                     title,
-                ], height=65),
+                ]),
+
+                ft.Row([
+                    ft.Column([
+                        chip_author
+                    ]),
+                    ft.Column([
+                        chips_length_views
+                    ]),
+                    ft.Column([
+                        chips_views
+                    ])
+                ]),
 
                 ft.Row([
                     ft.Text('', height=10),
@@ -282,14 +309,7 @@ def main(page: ft.Page):
                     ft.Text('', height=5),
                 ]),
 
-                ft.Row([
-                    ft.Column([
-                        chips_length_views
-                    ]),
-                    ft.Column([
-                        chips_views
-                    ])
-                ]),
+
             ], height=320)
         ]),
         divider,
