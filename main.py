@@ -7,12 +7,18 @@ import json
 
 def main(page: ft.Page):
     page.title = 'YouTube Downloader'
+    page.window_maximized = True
     page.padding = 20
     page.scrollable = True
+    half_screen_width = (page.window_width - page.padding * 2) / 2
 
-    thumbnail = ft.Container(width=576, height=320, image_fit=ft.ImageFit.COVER)
-    title = ft.Text('', size=20,  width=640)
-    description = ft.Text('', size=15, no_wrap=False, width=640, height=170)
+    thumbnail_height = half_screen_width / (16 / 9)
+
+    thumbnail = ft.Container(width=half_screen_width, height=thumbnail_height, image_fit=ft.ImageFit.COVER)
+    title = ft.Text('', size=20, width=half_screen_width)
+    description = ft.Text('', size=15, no_wrap=False, width=half_screen_width,
+                          max_lines=9,
+                          overflow=ft.TextOverflow.ELLIPSIS)
     length_views = ft.Text('', size=12)
     views = ft.Text('', size=12)
     author = ft.Text('', size=12, weight=ft.FontWeight.BOLD)
@@ -92,16 +98,9 @@ def main(page: ft.Page):
     # to get the directory result and save the selected path to json file
 
     def get_directory_result(e: ft.FilePickerResultEvent):
-        selected_path.value = e.path if e.path else 'Cancelled!'
-        try:
-            with open(direct_path, 'r+') as json_file:
-                json_data = json.load(json_file)
-                json_data["selected_path"] = selected_path.value
-                json_file.seek(0)
-                json.dump(json_data, json_file, indent=4)
+        selected_path.value = e.path if e.path else ''
 
-        except (IOError, json.JSONDecodeError) as e:
-            print(f"Error processing JSON file: {e}")
+        save_selected_path('selected_path', selected_path.value)
 
     # create a file picker to select the directory to save the video
     # and add to page as overlay
@@ -114,25 +113,37 @@ def main(page: ft.Page):
     # if not, open the file picker to select the directory
     # if yes, start download the video
 
-    def check_save_directory(direct_path):
+    def save_selected_path(value, data):
+        try:
+            with open(direct_path, 'r+') as json_file:
+                json_data = json.load(json_file)
+                json_data[value] = data
+                json_file.seek(0)
+                json.dump(json_data, json_file, indent=4)
+
+        except (IOError, json.JSONDecodeError) as e:
+            print(f"Error processing JSON file: {e}")
+
+    def check_save_path():
         try:
             with open(direct_path, 'r+') as json_file:
                 # Load the JSON data
                 json_data = json.load(json_file)
 
                 if not json_data.get("selected_path"):
-
-                    # open the file picker to select the directory
-                    file_picker.get_directory_path()
+                    return False
                 else:
                     '''path = json_data.get("selected_path")'''
-                    path = json_data.get("selected_path")
-
-                    # start download the video with path as argument
-                    start_download(path)
-
+                    return json_data.get("selected_path")
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error processing JSON file: {e}")
+
+    def check_save_directory():
+        selected_directory = check_save_path()
+        if not selected_directory:
+            file_picker.get_directory_path()
+        else:
+            start_download(selected_directory)
 
     # line separator
     divider = ft.Divider(visible=False)
@@ -145,7 +156,52 @@ def main(page: ft.Page):
                                      visible=False,
                                      bgcolor=ft.colors.PRIMARY_CONTAINER,
                                      icon='download',
-                                     on_click=lambda e: check_save_directory(direct_path))
+                                     on_click=lambda e: check_save_directory())
+
+    def close_setting_dlg():
+        dlg_setting_modal.open = False
+        user_link.focus()
+        page.update()
+
+    # create a function to open the dialog
+    def open_setting_dlg_modal(title, message):
+        error_title.value = title
+        error_message.value = message
+        page.dialog = dlg_setting_modal
+        dlg_setting_modal.open = True
+        page.update()
+
+    def on_change_button_click():
+        file_picker.get_directory_path()
+        close_setting_dlg()
+
+    # create a dialog modal to display error message
+    dlg_setting_modal = ft.AlertDialog(
+        modal=True,
+        title=error_title,
+        content=error_message,
+        actions=[
+            ft.TextButton('Change', on_click=lambda _: on_change_button_click(), width=100, height=40),
+            ft.TextButton("OK", on_click=lambda _: close_setting_dlg(), width=100, height=40),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+
+    def download_location_clicked():
+        if not check_save_path():
+            text = "You don't have any save directory yet"
+        else:
+            text = check_save_path()
+        open_setting_dlg_modal("Change directory", text)
+
+    setting_list = ft.PopupMenuButton(
+        icon=ft.icons.SETTINGS,
+        items=[
+            ft.PopupMenuItem(icon=ft.icons.EDIT_NOTE,
+                             text="Download location",
+                             on_click=lambda _: download_location_clicked()),
+        ]
+    )
 
     # progress bar to show the download progress
     progress = ft.ProgressBar(value=0, height=10, width=400, visible=False, border_radius=5)
@@ -223,9 +279,9 @@ def main(page: ft.Page):
     # get video info, when called, it will check the link is valid or not
     # if valid, it will get the video title, thumbnail, description and resolution
     def get_video_info(e):
+        progress.visible = False
         open_error_dlg_modal('Searching...', 'Please wait while searching')
         url = user_link.value
-        print(url)
         if not check_link(url):
             open_error_dlg_modal('Error', 'Invalid YouTube video link')
             return
@@ -252,6 +308,7 @@ def main(page: ft.Page):
 
     # add all the field to the page
     page.add(
+        setting_list,
         ft.Row([
             ft.Text('', size=30, height=30),
         ], alignment=ft.MainAxisAlignment.CENTER, ),
@@ -277,7 +334,7 @@ def main(page: ft.Page):
         ft.Divider(),
 
         ft.Row([
-            ft.Column([thumbnail]),
+            ft.Column([thumbnail], expand=True, height=thumbnail_height),
 
             ft.Column([
 
@@ -309,8 +366,7 @@ def main(page: ft.Page):
                     ft.Text('', height=5),
                 ]),
 
-
-            ], height=320)
+            ], expand=True, height=thumbnail_height)
         ]),
         divider,
         ft.Row([
