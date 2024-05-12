@@ -1,6 +1,6 @@
 import flet as ft
-from pytubefix import YouTube
-from pytube.exceptions import VideoUnavailable
+from flet_core import ProgressBar
+from pytubefix import YouTube, exceptions
 import concurrent.futures
 import json
 
@@ -11,13 +11,14 @@ def main(page: ft.Page):
     page.padding = 20
     page.scrollable = True
     half_screen_width = (page.window_width - page.padding * 2) / 2
-
+    half = page.window_width/2
     thumbnail_height = half_screen_width / (16 / 9)
 
-    thumbnail = ft.Container(width=half_screen_width, height=thumbnail_height, image_fit=ft.ImageFit.COVER)
-    title = ft.Text('', size=20, width=half_screen_width)
+    thumbnail = ft.Container(width=half, height=thumbnail_height, image_fit=ft.ImageFit.COVER)
+    title = ft.Text('', size=20, width=half, max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS)
     description = ft.Text('', size=15, no_wrap=False, width=half_screen_width,
-                          max_lines=9,
+                          max_lines=5,
                           overflow=ft.TextOverflow.ELLIPSIS)
     length_views = ft.Text('', size=12)
     views = ft.Text('', size=12)
@@ -30,6 +31,22 @@ def main(page: ft.Page):
     # create variables for error dialog, title and message
     error_title = ft.Text('', size=20)
     error_message = ft.Text('', size=15)
+
+    res_selected = ft.Text('')
+    download_option_label = ft.Text('Download option', size=15, visible=False)
+
+    divider_1 = ft.Divider(visible= False)
+
+    def dropdown_change(e):
+        res_selected.value = resolution_list.value
+        page.update()
+        print(res_selected.value)
+
+    resolution_list = ft.Dropdown(
+        on_change=dropdown_change,
+        hint_text='Choose resolutions: ',
+        visible=False
+    )
 
     # create a function to close the dialog
     def close_error_dlg(e):
@@ -57,7 +74,7 @@ def main(page: ft.Page):
     )
 
     '''
-    this function will be called from download_completed callback on start_download fucntion
+    this function will be called from download_completed callback on start_download function
     and open a dialog modal to show the download completed message'''
 
     def download_completed(stream, file_handle):
@@ -84,11 +101,14 @@ def main(page: ft.Page):
         progress.visible = True
         try:
             yt = YouTube(url, on_progress_callback=on_progress, on_complete_callback=download_completed)
-            video = yt.streams.first()  # Select the first stream
-            open_error_dlg_modal('Downloading...', 'The video is downloading. Please wait...')
-            video.download(output_path=path)
 
-        except VideoUnavailable:
+            #download specific resolution
+            video = yt.streams.filter(res=str(res_selected.value)).first()
+
+            open_error_dlg_modal('Downloading...', 'The video is downloading. Please wait...')
+            video.download(output_path=path, )
+
+        except exceptions:
             open_error_dlg_modal('Error', 'An error occurred while downloading the video.')
 
     direct_path = 'directory.json'
@@ -155,7 +175,7 @@ def main(page: ft.Page):
                                      height=50,
                                      visible=False,
                                      bgcolor=ft.colors.PRIMARY_CONTAINER,
-                                     icon='download',
+                                     icon=ft.icons.DOWNLOAD,
                                      on_click=lambda e: check_save_directory())
 
     def close_setting_dlg():
@@ -181,18 +201,18 @@ def main(page: ft.Page):
         title=error_title,
         content=error_message,
         actions=[
-            ft.TextButton('Change', on_click=lambda _: on_change_button_click(), width=100, height=40),
-            ft.TextButton("OK", on_click=lambda _: close_setting_dlg(), width=100, height=40),
+            ft.TextButton('Change', on_click=lambda _: on_change_button_click(), width=80, height=40),
+            ft.TextButton("OK", on_click=lambda _: close_setting_dlg(), width=80, height=40),
         ],
         actions_alignment=ft.MainAxisAlignment.END,
     )
 
     def download_location_clicked():
         if not check_save_path():
-            text = "You don't have any save directory yet"
+            text = "None"
         else:
             text = check_save_path()
-        open_setting_dlg_modal("Change directory", text)
+        open_setting_dlg_modal("Change directory", f'Your save directory is: {text}')
 
     setting_list = ft.PopupMenuButton(
         icon=ft.icons.SETTINGS,
@@ -204,7 +224,7 @@ def main(page: ft.Page):
     )
 
     # progress bar to show the download progress
-    progress = ft.ProgressBar(value=0, height=10, width=400, visible=False, border_radius=5)
+    progress: ProgressBar = ft.ProgressBar(value=0, height=5, width=400, visible=False, border_radius=5)
 
     def chip_clicked():
         return None
@@ -231,7 +251,7 @@ def main(page: ft.Page):
     def get_channel_name(yt):
         try:
             author.value = yt.author
-        except VideoUnavailable:
+        except Exception:
             print('Unable to get video title')
 
     def get_title(yt):
@@ -264,9 +284,9 @@ def main(page: ft.Page):
             # remove None from the list and sort the list
             remove_p_from_resolutions = list(filter(None, resolutions))
             remove_p_from_resolutions.sort()
-            print(remove_p_from_resolutions)
-        except VideoUnavailable:
+        except Exception:
             description.value = 'Unable to get video resolution'
+        return remove_p_from_resolutions
 
     # check if the link is valid or not
     def check_link(url):
@@ -275,6 +295,15 @@ def main(page: ft.Page):
             return True
         except Exception:
             return False
+
+    def show_res_dropdown():
+        url = user_link.value
+        yt = YouTube(url)
+        res = get_resolution(yt)
+        resolution_list.options = [
+            ft.dropdown.Option(i) for i in res
+        ]
+        page.update()
 
     # get video info, when called, it will check the link is valid or not
     # if valid, it will get the video title, thumbnail, description and resolution
@@ -294,14 +323,19 @@ def main(page: ft.Page):
                 executor.submit(get_resolution, yt)
                 executor.submit(get_channel_name, yt)
 
-        length_views.value = f' {yt.length / 60:,.2f} mins '
+        length_views.value = f' {yt.length / 60:,.2f} min '
         views.value = f' {yt.views:,.0f} views '
 
+        show_res_dropdown()
         divider.visible = True
         download_btn.visible = True
         chips_length_views.visible = True
         chips_views.visible = True
         chip_author.visible = True
+
+        divider_1.visible = True
+        resolution_list.visible = True
+        download_option_label.visible = True
 
         close_error_dlg(e)
         page.update()
@@ -325,7 +359,7 @@ def main(page: ft.Page):
             user_link,
             ft.ElevatedButton('Search',
                               on_click=get_video_info,
-                              icon='search',
+                              icon=ft.icons.SEARCH,
                               width=150,
                               height=60,
                               bgcolor=ft.colors.PRIMARY_CONTAINER)
@@ -362,8 +396,15 @@ def main(page: ft.Page):
                     description
                 ]),
 
+                divider_1,
                 ft.Row([
-                    ft.Text('', height=5),
+                    ft.Text('', height=10),
+                ]),
+                ft.Row([
+                    download_option_label
+                ]),
+                ft.Row([
+                    resolution_list
                 ]),
 
             ], expand=True, height=thumbnail_height)
