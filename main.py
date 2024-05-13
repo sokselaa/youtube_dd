@@ -10,16 +10,16 @@ def main(page: ft.Page):
     page.window_maximized = True
     page.padding = 20
     page.scrollable = True
-    half_screen_width = (page.window_width - page.padding * 2) / 2
-    half = page.window_width/2
-    thumbnail_height = half_screen_width / (16 / 9)
+
+    half = page.window_width / 2
+    thumbnail_height = half / (16 / 9)
 
     thumbnail = ft.Container(width=half, height=thumbnail_height, image_fit=ft.ImageFit.COVER)
     title = ft.Text('', size=20, width=half, max_lines=1,
                     overflow=ft.TextOverflow.ELLIPSIS)
-    description = ft.Text('', size=15, no_wrap=False, width=half_screen_width,
+    description = ft.Text('', size=15, no_wrap=False, width=half,
                           max_lines=5,
-                          overflow=ft.TextOverflow.ELLIPSIS)
+                          overflow=ft.TextOverflow.ELLIPSIS, height=120)
     length_views = ft.Text('', size=12)
     views = ft.Text('', size=12)
     author = ft.Text('', size=12, weight=ft.FontWeight.BOLD)
@@ -35,7 +35,7 @@ def main(page: ft.Page):
     res_selected = ft.Text('')
     download_option_label = ft.Text('Download option', size=15, visible=False)
 
-    divider_1 = ft.Divider(visible= False)
+    divider_1 = ft.Divider(visible=False)
 
     def dropdown_change(e):
         res_selected.value = resolution_list.value
@@ -80,8 +80,6 @@ def main(page: ft.Page):
     def download_completed(stream, file_handle):
         progress.bgcolor = ft.colors.GREEN
         open_error_dlg_modal('Download completed', 'The video has been downloaded successfully.')
-
-    '''#monitor the download progress'''
 
     def on_progress(stream, chunk, bytes_remaining):
         total_size = stream.filesize  # Assuming file size is available
