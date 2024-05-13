@@ -116,9 +116,9 @@ def main(page: ft.Page):
     # to get the directory result and save the selected path to json file
 
     def get_directory_result(e: ft.FilePickerResultEvent):
-        selected_path.value = e.path if e.path else ''
-
-        save_selected_path('selected_path', selected_path.value)
+        if e.path:
+            selected_path.value = e.path
+            save_selected_path('selected_path', selected_path.value)
 
     # create a file picker to select the directory to save the video
     # and add to page as overlay
@@ -311,7 +311,6 @@ def main(page: ft.Page):
         url = user_link.value
         if not check_link(url):
             open_error_dlg_modal('Error', 'Invalid YouTube video link')
-            return
         else:
             yt = YouTube(url)
             with concurrent.futures.ThreadPoolExecutor() as executor:
